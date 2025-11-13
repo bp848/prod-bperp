@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { Project, ProjectStatus } from '../../types.ts';
 import { KanbanSquare, PlusCircle, Sparkles, Eye, FileText } from '../Icons.tsx';
@@ -48,7 +46,8 @@ const ProjectListPage: React.FC<ProjectListPageProps> = ({ projects, onNavigateT
                                     <td className="px-6 py-4 font-semibold text-slate-800 dark:text-white">{proj.projectName}</td>
                                     <td className="px-6 py-4">{proj.customerName}</td>
                                     <td className="px-6 py-4 text-sm">{formatDate(proj.createdAt)}</td>
-                                    <td className="px-6 py-4"><ProjectStatusBadge status={proj.status}/></td>
+                                    {/* FIX: Use projectStatus instead of status */}
+                                    <td className="px-6 py-4"><ProjectStatusBadge status={proj.projectStatus} /></td>
                                     <td className="px-6 py-4 text-center">
                                         <button onClick={() => setSelectedProject(proj)} className="p-2 text-slate-500 hover:text-blue-600" title="詳細表示">
                                             <Eye className="w-5 h-5"/>

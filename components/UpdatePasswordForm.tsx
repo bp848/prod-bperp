@@ -1,74 +1,114 @@
-import React, { useState } from "react";
-import { supabase } from '../services/supabaseClient';
-import { Package, Loader, Save } from './Icons.tsx';
+
+
+import React, { useState, useRef, useEffect } from 'react';
+import { supabase } from '../services/supabaseClient.ts';
+import { Loader, Save, AlertTriangle } from './Icons.tsx';
 
 interface UpdatePasswordFormProps {
-    onPasswordUpdated: () => void;
+  onPasswordUpdate: () => void;
 }
 
-const UpdatePasswordForm: React.FC<UpdatePasswordFormProps> = ({ onPasswordUpdated }) => {
-  const [password, setPassword] = useState("");
+const UpdatePasswordForm: React.FC<UpdatePasswordFormProps> = ({ onPasswordUpdate }) => {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
-  const handlePasswordUpdate = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (passwordInputRef.current) {
+      passwordInputRef.current.focus();
+    }
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password) {
-        setMsg("新しいパスワードを入力してください。");
-        return;
-    }
     setLoading(true);
-    setMsg("");
-    setSuccessMsg("");
+    setError('');
+    setSuccess(false);
 
-    const { error } = await supabase.auth.updateUser({ password });
-
-    if (error) {
-        setMsg(error.message);
-        setLoading(false);
-        return;
+    if (password !== confirmPassword) {
+      setError('パスワードが一致しません。');
+      setLoading(false);
+      return;
+    }
+    if (password.length < 6) {
+      setError('パスワードは6文字以上で入力してください。');
+      setLoading(false);
+      return;
     }
 
-    setLoading(false);
-    setSuccessMsg("パスワードが正常に更新されました。自動的にリダイレクトします...");
-
-    setTimeout(() => {
-        onPasswordUpdated();
-    }, 2000);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      setSuccess(true);
+      setTimeout(() => {
+        onPasswordUpdate(); // Notify parent component to close this form
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const inputClass = "w-full bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white rounded-lg p-3 focus:ring-blue-500 focus:border-blue-500";
+  const labelClass = "block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1";
+  const buttonClass = "w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 disabled:bg-slate-400";
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-100 dark:bg-slate-900 font-sans">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl dark:bg-slate-800">
-        <div className="flex flex-col items-center">
-          <div className="flex items-center gap-2 text-slate-800 dark:text-white">
-            <Package className="w-10 h-10 text-blue-600" />
-            <h2 className="text-3xl font-bold">パスワード再設定</h2>
+    <div className="flex h-screen items-center justify-center bg-slate-100 dark:bg-[#0d1117] p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6 animate-fade-in-up">
+        <h1 className="text-3xl font-bold text-center text-slate-900 dark:text-white">
+          パスワードを設定
+        </h1>
+        {error && (
+            <div className="flex items-center gap-2 rounded-md bg-red-50 dark:bg-red-900/30 p-3 text-sm text-red-700 dark:text-red-200">
+                <AlertTriangle className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                {error}
+            </div>
+        )}
+        {success && (
+          <div className="text-center text-green-600 dark:text-green-400 font-medium">
+            パスワードが正常に更新されました。
           </div>
-          <p className="mt-2 text-center text-slate-600 dark:text-slate-400">
-            新しいパスワードを入力してください。
-          </p>
-        </div>
-        <form onSubmit={handlePasswordUpdate} className="space-y-4">
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="新しいパスワード"
-            className="border p-2 w-full rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-500"
-            required
-            autoComplete="new-password"
-          />
-          <button disabled={loading || !!successMsg} className="w-full flex justify-center items-center gap-2 bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-slate-400">
-            {loading ? <><Loader className="w-5 h-5 animate-spin" /> <span>更新中...</span></> : <><Save className="w-5 h-5"/><span>パスワードを更新</span></>}
+        )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="password" className={labelClass}>新しいパスワード</label>
+            <input
+              type="password"
+              id="password"
+              ref={passwordInputRef}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputClass}
+              placeholder="••••••••"
+              required
+              autoComplete="new-password"
+            />
+          </div>
+          <div>
+            <label htmlFor="confirm-password" className={labelClass}>パスワードを再入力</label>
+            <input
+              type="password"
+              id="confirm-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className={inputClass}
+              placeholder="••••••••"
+              required
+              autoComplete="new-password"
+            />
+          </div>
+          <button type="submit" className={buttonClass} disabled={loading}>
+            {loading ? <Loader className="w-5 h-5 animate-spin" /> : 'パスワードを設定'}
           </button>
-          {msg && <p className="text-red-600 text-sm text-center">{msg}</p>}
-          {successMsg && <p className="text-green-600 text-sm text-center">{successMsg}</p>}
         </form>
       </div>
     </div>
   );
-}
+};
 
 export default UpdatePasswordForm;

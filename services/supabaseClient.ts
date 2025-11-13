@@ -1,37 +1,102 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, SupabaseClientOptions } from '@supabase/supabase-js';
 import { getEnvValue } from '../utils.ts';
-import { SUPABASE_URL as HARDCODED_URL, SUPABASE_KEY as HARDCODED_KEY } from '../supabaseCredentials.ts';
+import { SUPABASE_URL as HARDCODED_SUPABASE_URL, SUPABASE_KEY as HARDCODED_SUPABASE_KEY } from '../supabaseCredentials.ts';
 
-// Supabase URL and Key are obtained from environment variables, localStorage, or a credentials file as a fallback.
-const SUPABASE_URL = getEnvValue('VITE_SUPABASE_URL') || localStorage.getItem('supabaseUrl') || HARDCODED_URL;
-const SUPABASE_KEY = getEnvValue('VITE_SUPABASE_ANON_KEY') || localStorage.getItem('supabaseAnonKey') || HARDCODED_KEY;
-
-
-// Supabaseクライアントを一度だけ初期化してエクスポート
-export const supabase: SupabaseClient = createClient(
-  SUPABASE_URL || 'http://localhost', // Fallback to avoid crash, but will be caught by hasSupabaseCredentials
-  SUPABASE_KEY || 'dummy_key',        // Fallback to avoid crash
-  {
-    auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true, // Essential for OAuth callback
-        flowType: 'pkce',         // Recommended for OAuth
-    },
-});
-
-// 既存コードとの互換性のためにgetSupabaseもエクスポート
-export const getSupabase = (): SupabaseClient => {
-    if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL === 'http://localhost' || SUPABASE_KEY === 'dummy_key') {
-        throw new Error("Supabase client is not properly configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables, configure via settings, or fill supabaseCredentials.ts.");
-    }
-    return supabase;
+// Helper to determine if a URL is valid and not a placeholder
+export const isValidSupabaseUrl = (value: string | null | undefined): boolean => {
+    const isValid = !!(value && value !== 'YOUR_SUPABASE_URL' && (value.startsWith('http://') || value.startsWith('https://')));
+    console.log(`isValidSupabaseUrl(${value ? value.substring(0, 20) + '...' : 'null'}): ${isValid}`);
+    return isValid;
 };
 
-// 接続情報が設定されているか確認する関数
+// Helper to determine if an API key is valid and not a placeholder (simple length heuristic)
+export const isValidSupabaseKey = (value: string | null | undefined): boolean => {
+    const isValid = !!(value && value !== 'YOUR_SUPABASE_ANON_KEY' && value.length >= 64); // Anon Key should be a long JWT
+    console.log(`isValidSupabaseKey(${value ? value.substring(0, 10) + '...' : 'null'}): ${isValid}`);
+    return isValid;
+};
+
+// Get active credentials from various sources with clear priority
+const getActiveCredentials = () => {
+    let activeUrl: string | undefined | null = null;
+    let activeKey: string | undefined | null = null;
+
+    // Priority 1: localStorage (user-saved via settings)
+    const localUrl = localStorage.getItem('supabaseUrl');
+    const localKey = localStorage.getItem('supabaseAnonKey');
+    if (isValidSupabaseUrl(localUrl) && isValidSupabaseKey(localKey)) {
+        activeUrl = localUrl;
+        activeKey = localKey;
+        console.log('getActiveCredentials - Using LocalStorage credentials.');
+    } else {
+        console.log('getActiveCredentials - LocalStorage credentials not found or invalid.');
+    }
+
+    // Priority 2: Environment variables (Vite/Next or plain)
+    if (!isValidSupabaseUrl(activeUrl) || !isValidSupabaseKey(activeKey)) {
+        const envUrl = getEnvValue('SUPABASE_URL'); // utils.ts handles VITE_/NEXT_PUBLIC_ prefixes
+        const envKey = getEnvValue('SUPABASE_ANON_KEY'); // utils.ts handles VITE_/NEXT_PUBLIC_ prefixes
+        if (isValidSupabaseUrl(envUrl) && isValidSupabaseKey(envKey)) {
+            activeUrl = envUrl;
+            activeKey = envKey;
+            console.log('getActiveCredentials - Using Environment Variable credentials.');
+        } else {
+            console.log('getActiveCredentials - Environment Variable credentials not found or invalid.');
+        }
+    }
+
+    // Priority 3: Hardcoded fallback from supabaseCredentials.ts
+    if (!isValidSupabaseUrl(activeUrl) || !isValidSupabaseKey(activeKey)) {
+        if (isValidSupabaseUrl(HARDCODED_SUPABASE_URL) && isValidSupabaseKey(HARDCODED_SUPABASE_KEY)) {
+            activeUrl = HARDCODED_SUPABASE_URL;
+            activeKey = HARDCODED_SUPABASE_KEY;
+            console.log('getActiveCredentials - Using Hardcoded credentials.');
+        } else {
+            console.log('getActiveCredentials - Hardcoded credentials not found or invalid.');
+        }
+    }
+
+    console.log('getActiveCredentials - Final Active URL (valid?):', isValidSupabaseUrl(activeUrl));
+    console.log('getActiveCredentials - Final Active Key (valid?):', isValidSupabaseKey(activeKey));
+
+    return { url: activeUrl, key: activeKey };
+};
+
+// Check if *any* valid credentials are found from any source (env, local, hardcoded)
 export const hasSupabaseCredentials = (): boolean => {
-    // 環境変数、localStorage、またはcredentialsファイルに有効な値が設定されているかを確認
-    return !!(SUPABASE_URL && SUPABASE_KEY && 
-              SUPABASE_URL !== 'http://localhost' && SUPABASE_KEY !== 'dummy_key' &&
-              !SUPABASE_URL.includes('ここにURLを貼り付け') && !SUPABASE_KEY.includes('ここにキーを貼り付け'));
+    const { url, key } = getActiveCredentials();
+    const result = isValidSupabaseUrl(url) && isValidSupabaseKey(key);
+    console.log('hasSupabaseCredentials returns:', result);
+    return result;
+};
+
+// Initialize Supabase Client
+const initializeSupabaseClient = (): SupabaseClient => {
+    const { url: finalClientUrl, key: finalClientKey } = getActiveCredentials();
+
+    // If no valid credentials are found, use dummy values to prevent app crash,
+    // but the app should display the setup modal.
+    const clientUrl = finalClientUrl || 'https://dummy.supabase.co';
+    const clientKey = finalClientKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kdW1teSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNjc4MDY0NDAwLCJleHAiOjE5OTM2MDA4MDB9.dummy_anon_key'; // A dummy valid key format
+
+    const supabaseClientOptions: SupabaseClientOptions<any> = {
+        auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            flowType: 'pkce',
+            // providers property is not valid here; providers are specified during signInWithOAuth calls
+        },
+    };
+    return createClient(clientUrl, clientKey, supabaseClientOptions);
+};
+
+export const supabase: SupabaseClient = initializeSupabaseClient();
+
+// Existing code for getSupabase, ensures compatibility if other files call it directly,
+// though they mostly use `supabase` directly. This will return the same instance.
+export const getSupabase = (): SupabaseClient => {
+    // For simplicity, we return the singleton. A more complex app might re-create the client
+    // if settings are dynamically updated without a full page reload.
+    return supabase;
 };

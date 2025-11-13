@@ -31,13 +31,10 @@ import ProjectCreationPage from './components/sales/ProjectCreationPage.tsx';
 import SalesRanking from './components/accounting/SalesRanking.tsx';
 import ApprovalWorkflowPage from './components/accounting/ApprovalWorkflowPage.tsx';
 import { ConnectionSetupPage } from './components/DatabaseSetupInstructionsModal.tsx';
-import OrganizationChartPage from './components/hr/OrganizationChartPage.tsx';
 import LoginPage from './components/LoginPage.tsx';
 import UpdatePasswordForm from './components/UpdatePasswordForm.tsx';
 import BugReportModal from './components/BugReportModal.tsx';
-// Added missing imports for components
 import ManufacturingCostManagement from './components/accounting/ManufacturingCostManagement.tsx';
-// FIX: Change named import to default import for BusinessSupportPage
 import BusinessSupportPage from './components/BusinessSupportPage.tsx';
 import AIChatPage from './components/AIChatPage.tsx';
 import MarketResearchPage from './components/MarketResearchPage.tsx';
@@ -48,8 +45,8 @@ import JournalQueuePage from './components/admin/JournalQueuePage.tsx';
 import MasterManagementPage from './components/admin/MasterManagementPage.tsx';
 import { ToastContainer } from './components/Toast.tsx';
 import ConfirmationDialog from './components/ConfirmationDialog.tsx';
-// FIX: Integrate BusinessPlanPage by importing it.
 import BusinessPlanPage from './components/BusinessPlanPage.tsx';
+import OrganizationChartPage from './components/hr/OrganizationChartPage.tsx';
 
 
 import * as dataService from './services/dataService.ts';
@@ -114,7 +111,7 @@ const PAGE_TITLES: Record<Page, string> = {
     settings: '設定',
 };
 
-const GlobalErrorBanner: React.FC<{ error: string; onRetry: () => void; onShowSetup: () => void; }> = ({ error, onRetry, onShowSetup }) => (
+const GlobalErrorBanner: React.FC<{ error: string; onRetry: () => void; }> = ({ error, onRetry }) => (
     <div className="bg-red-600 text-white p-3 flex items-center justify-between gap-4 flex-shrink-0 z-20">
       <div className="flex items-center gap-3">
         <AlertTriangle className="w-6 h-6 flex-shrink-0" />
@@ -130,21 +127,19 @@ const GlobalErrorBanner: React.FC<{ error: string; onRetry: () => void; onShowSe
           <RefreshCw className="w-4 h-4" />
           再接続
         </button>
-        <button 
-          onClick={onShowSetup}
-          className="bg-slate-600 hover:bg-slate-700 text-white font-semibold text-sm py-1.5 px-3 rounded-md flex items-center gap-1.5 transition-colors">
-          <Settings className="w-4 h-4" />
-          セットアップガイド
-        </button>
       </div>
     </div>
 );
 
 const App: React.FC = () => {
-    const [authLoading, setAuthLoading] = useState(true);
     const [session, setSession] = useState<Session | null>(null);
-    const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
     const [currentUser, setCurrentUser] = useState<EmployeeUser | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+    const [loginRequired, setLoginRequired] = useState(false);
+    const [showSetupModal, setShowSetupModal] = useState(false);
+    const [userExistsInDB, setUserExistsInDB] = useState(true);
+    const [magicLinkSent, setMagicLinkSent] = useState(false);
+    const [needsPasswordUpdate, setNeedsPasswordUpdate] = useState(false);
 
     const [currentPage, setCurrentPage] = useState<Page>('analysis_dashboard');
     const [allUsers, setAllUsers] = useState<EmployeeUser[]>([]);
@@ -167,7 +162,7 @@ const App: React.FC = () => {
     // Master data
     const [departments, setDepartments] = useState<Department[]>([]);
     const [paymentRecipients, setPaymentRecipients] = useState<PaymentRecipient[]>([]);
-    const [masterAccountItems, setMasterAccountItems] = useState<MasterAccountItem[]>([]);
+    // const [masterAccountItems, setMasterAccountItems] = useState<MasterAccountItem[]>([]); // 現在未使用のためコメントアウト
     const [allocationDivisions, setAllocationDivisions] = useState<AllocationDivision[]>([]);
     const [titles, setTitles] = useState<Title[]>([]);
 
@@ -202,7 +197,6 @@ const App: React.FC = () => {
     
     const [isBugReportModalOpen, setIsBugReportModalOpen] = useState(false);
     const isAIOff = getEnvValue('NEXT_PUBLIC_AI_OFF') === '1';
-    const [showSetupModal, setShowSetupModal] = useState(false);
 
     const addToast = useCallback((message: string, type: Toast['type']) => {
         setToasts(prev => [...prev, { id: Date.now(), message, type }]);
@@ -222,80 +216,105 @@ const App: React.FC = () => {
             return;
         }
 
-        // ✅ OAuth/Password/MagicLink の直後に public.users を必ず同期
-        const ensureProfileUpsert = async (supabaseUser: { id: string; email?: string | null; user_metadata?: any }) => {
-          if (!supabaseUser?.id) return;
-          const name =
-            supabaseUser.user_metadata?.full_name ??
-            supabaseUser.user_metadata?.name ??
-            supabaseUser.email ?? null;
-
-          const { error: upsertError } = await supabase
-            .from('users')
-            .upsert(
-              { id: supabaseUser.id, auth_user_id: supabaseUser.id, email: supabaseUser.email, name },
-              { onConflict: 'id' }
-            );
-
-          if (upsertError) {
-            console.error('Profile upsert failed:', upsertError);
-            // 破綻セッションのまま進めない
-            await supabase.auth.signOut();
-            throw upsertError;
-          }
-        };
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            if (!isMounted) return;
-
-            if (event === 'PASSWORD_RECOVERY') {
-                setIsPasswordRecovery(true);
-                setAuthLoading(false);
-                return;
-            }
-
-            if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (isMounted) {
                 setSession(session);
-                setIsPasswordRecovery(false);
-
-                if (session) {
-                    try {
-                        // ✅ 初回に必ず同期してからデータ読取
-                        await ensureProfileUpsert(session.user);
-                        const resolvedUser = await dataService.resolveUserSession(session.user);
-                        if (isMounted) {
-                            setCurrentUser(resolvedUser);
-                            setError(null);
-                        }
-                    } catch (err: any) {
-                        if (isMounted) {
-                            console.error('Failed to resolve user session:', err);
-                            setError(`ユーザープロファイルの読み込みエラー: ${err.message || '不明なエラー'}`);
-                            setCurrentUser(null);
-                            await supabase.auth.signOut();
-                        }
-                    }
-                }
-            } else if (event === 'SIGNED_OUT') {
-                if (isMounted) {
-                    setSession(null);
-                    setCurrentUser(null);
-                    setIsPasswordRecovery(false);
-                }
-            }
-
-            if (event === 'INITIAL_SESSION') {
-                if (isMounted) {
-                    setAuthLoading(false);
-                }
+                setAuthLoading(false);
             }
         });
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (_event: AuthChangeEvent, session: Session | null) => {
+                if (isMounted) {
+                    setSession(session);
+                    setAuthLoading(false);
+
+                    if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED') {
+                        // All users will now go through profile resolution/upsert
+                        try {
+                            const userProfile = await dataService.resolveUserSession(session!.user); // session! as it's SIGNED_IN
+                            setCurrentUser(userProfile);
+                            setLoginRequired(false);
+                            setUserExistsInDB(true);
+                            setNeedsPasswordUpdate(false);
+                        } catch (e: any) {
+                            console.error("Error resolving user session or profile:", e);
+                            if (e.message === 'user profile not found') {
+                                setUserExistsInDB(false);
+                            } else {
+                                setError("ユーザープロファイルの読み込みに失敗しました。");
+                            }
+                            setCurrentUser(null);
+                            setLoginRequired(true);
+                        }
+                    } else if (_event === 'SIGNED_OUT') {
+                        setCurrentUser(null);
+                        setLoginRequired(true);
+                        setNeedsPasswordUpdate(false);
+                    } else if (_event === 'USER_UPDATED' && session?.user?.email_confirmed_at && !session?.user?.last_sign_in_at) {
+                        // User has just confirmed email and needs to set password for the first time
+                        setNeedsPasswordUpdate(true);
+                        setLoginRequired(false);
+                    }
+                }
+            }
+        );
 
         return () => {
             isMounted = false;
             subscription.unsubscribe();
         };
     }, []);
+
+    const ensureProfileUpsert = useCallback(async (user: { id: string; email?: string | null }) => {
+        try {
+            const userProfile = await dataService.resolveUserSession(user);
+            setCurrentUser(userProfile);
+            setUserExistsInDB(true);
+            setLoginRequired(false);
+        } catch (e: any) {
+            if (e.message === 'user profile not found') {
+                const { error: upsertError } = await supabase.from('users').upsert(
+                    { id: user.id, email: user.email, name: user.email?.split('@')[0] || '名無し', role: 'user', created_at: new Date().toISOString() },
+                    { onConflict: 'id' }
+                );
+                if (upsertError) throw upsertError;
+                const updatedUserProfile = await dataService.resolveUserSession(user);
+                setCurrentUser(updatedUserProfile);
+                setUserExistsInDB(true);
+                setLoginRequired(false);
+            } else {
+                throw e;
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!authLoading && session && currentUser === null) {
+            if (!userExistsInDB) {
+                // This state indicates a user signed in but no public.users entry was found
+                // We'll try to create it or ensure it exists
+                ensureProfileUpsert(session.user).catch((e) => {
+                    console.error("Error during profile upsert:", e);
+                    setError("ユーザープロファイルの初期化に失敗しました。");
+                    setLoginRequired(true); // Fallback to login if profile can't be ensured
+                });
+            } else {
+                // User exists in DB, just load their data
+                dataService.resolveUserSession(session.user).then(setCurrentUser).catch((e) => {
+                    console.error("Error loading user profile after session:", e);
+                    setError("ユーザープロファイルの読み込みに失敗しました。");
+                    setLoginRequired(true);
+                });
+            }
+        } else if (!authLoading && !session) {
+            setLoginRequired(true);
+            setCurrentUser(null);
+        } else if (currentUser) {
+            setLoginRequired(false);
+        }
+    }, [authLoading, session, currentUser, userExistsInDB, ensureProfileUpsert]);
+
 
     const fetchData = useCallback(async (user: EmployeeUser) => {
       setIsLoading(true);
@@ -311,6 +330,7 @@ const App: React.FC = () => {
           dataService.getAccountItems(), dataService.getLeads(), dataService.getApprovalRoutes(),
           dataService.getPurchaseOrders(), dataService.getInventoryItems(),
           dataService.getUsers(), dataService.getBugReports(), dataService.getEstimates(),
+          // FIX: Pass currentUser to getApplications function to filter by user_id_param
           dataService.getApplications(user), dataService.getApplicationCodes(), dataService.getInvoices(),
           dataService.getProjects(), dataService.getDepartments(), dataService.getPaymentRecipients(),
           dataService.getAllocationDivisions(), dataService.getTitles()
@@ -336,9 +356,9 @@ const App: React.FC = () => {
         setTitles(titlesData);
       } catch (err: any) {
         console.error("Data fetching error:", err);
-        setError("データの読み込みに失敗しました。");
+        setError(`データの読み込みに失敗しました: ${err.message || String(err)}`);
         if (dataService.isSupabaseUnavailableError(err)) {
-            setError('データベースに接続できません。ネットワーク接続を確認し、Supabaseの認証情報が正しく設定されているか確認してください。');
+            setError('データベースに接続できません。Supabaseの認証情報が正しく設定されているか確認してください。');
         }
       } finally {
         setIsLoading(false);
@@ -352,12 +372,13 @@ const App: React.FC = () => {
     }, [currentUser, fetchData]);
 
     const handleSignOut = useCallback(async () => {
-        if (!hasSupabaseCredentials()) {
-            addToast('Supabaseが設定されていません。', 'info');
-            return;
+        try {
+            await supabase.auth.signOut();
+            addToast('ログアウトしました。', 'info');
+        } catch (error) {
+            console.error('Error signing out:', error);
+            addToast('ログアウトに失敗しました。', 'error');
         }
-        await supabase.auth.signOut();
-        // State will be cleared by onAuthStateChange listener
     }, [addToast]);
     
     const handleAnalyzeCustomer = useCallback(async (customer: Customer) => {
@@ -431,7 +452,9 @@ const App: React.FC = () => {
         await dataService.deleteLead(leadId);
         if(currentUser) await fetchData(currentUser);
         addToast("リードが削除されました。", "success");
+        setIsJobDetailModalOpen(false); // Changed from setIsJobDetailModalOpen to handle lead modal closing if open
     }, [fetchData, addToast, currentUser]);
+
 
     const handleAddPurchaseOrder = useCallback(async (orderData: Omit<PurchaseOrder, 'id'>) => {
         await dataService.addPurchaseOrder(orderData);
@@ -523,7 +546,6 @@ const App: React.FC = () => {
             case 'analysis_ranking':
                 return <SalesRanking jobs={jobs} />;
             case 'accounting_business_plan':
-                // FIX: Replace PlaceholderPage with BusinessPlanPage to enable the feature.
                 return <BusinessPlanPage allUsers={allUsers} />;
             case 'manufacturing_cost':
                 return <ManufacturingCostManagement jobs={jobs} />;
@@ -626,31 +648,33 @@ const App: React.FC = () => {
         }
     };
     
+    // Auth-related rendering logic
+    if (showSetupModal) {
+        return <ConnectionSetupPage onSetupComplete={() => { setShowSetupModal(false); window.location.reload(); }} />;
+    }
+
     if (authLoading) {
         return <div className="flex h-screen items-center justify-center"><Loader className="w-12 h-12 animate-spin" /></div>;
     }
-    
-    if (showSetupModal) {
-        return <ConnectionSetupPage onRetry={() => { setShowSetupModal(false); setError(null); window.location.reload(); }} />;
+
+    if (error && !loginRequired) { // Only show global error if not already forced to login page
+        return <GlobalErrorBanner error={error} onRetry={() => window.location.reload()} />;
     }
 
-    if (isPasswordRecovery) {
-        return <UpdatePasswordForm onPasswordUpdated={() => setIsPasswordRecovery(false)} />;
+    if (needsPasswordUpdate) {
+        return <UpdatePasswordForm onPasswordUpdate={() => setNeedsPasswordUpdate(false)} />;
     }
 
-    if (!session) {
-        return <LoginPage />;
-    }
-    
-    if (!currentUser && !error) {
-        return <div className="flex h-screen items-center justify-center"><Loader className="w-12 h-12 animate-spin" /></div>;
+    if (loginRequired || !session || !currentUser) {
+        // Render login page if not authenticated or user profile not loaded
+        return <LoginPage onMagicLinkSent={() => setMagicLinkSent(true)} magicLinkSent={magicLinkSent} />;
     }
 
     return (
         <div className="flex h-screen bg-slate-100 dark:bg-[#0d1117] text-slate-900 dark:text-slate-100">
             <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} currentUser={currentUser} onSignOut={handleSignOut} />
             <div className="flex-1 flex flex-col overflow-hidden">
-                {error && <GlobalErrorBanner error={error} onRetry={() => currentUser && fetchData(currentUser)} onShowSetup={() => setShowSetupModal(true)}/>}
+                {error && <GlobalErrorBanner error={error} onRetry={() => currentUser && fetchData(currentUser)} />}
                 <main className="flex-1 overflow-y-auto p-8 space-y-6">
                     <Header
                         title={PAGE_TITLES[currentPage] || 'Dashboard'}
@@ -682,7 +706,6 @@ const App: React.FC = () => {
             {isCompanyAnalysisModalOpen && <CompanyAnalysisModal isOpen={isCompanyAnalysisModalOpen} onClose={() => setIsCompanyAnalysisModalOpen(false)} analysis={analysisResult} customer={analysisTargetCustomer} isLoading={isAnalysisLoading} error={analysisError} currentUser={currentUser} isAIOff={isAIOff} onReanalyze={handleAnalyzeCustomer} />}
             <ToastContainer toasts={toasts} onDismiss={(id) => setToasts(prev => prev.filter(t => t.id === id))} />
             <ConfirmationDialog {...confirmationDialog} />
-            {showSetupModal && <ConnectionSetupPage onRetry={() => { setShowSetupModal(false); currentUser && fetchData(currentUser); }} />}
             <button
                 onClick={() => setIsBugReportModalOpen(true)}
                 className="fixed bottom-8 right-8 bg-purple-600 text-white p-4 rounded-full shadow-lg hover:bg-purple-700 transition-transform transform hover:scale-110"

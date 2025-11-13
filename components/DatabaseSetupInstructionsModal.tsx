@@ -1,160 +1,116 @@
+import React, { useState, useEffect } from 'react';
+import { X, CheckCircle, Database, Settings, Save, Loader, AlertTriangle } from './Icons.tsx';
+// Removed direct import of SUPABASE_URL, SUPABASE_KEY and specific isValid functions to simplify logic
 
-
-import React from 'react';
-import { X, BookOpen, ArrowRight } from './Icons.tsx';
-
-interface Props {
-    onRetry: () => void;
+interface ConnectionSetupPageProps {
+  onSetupComplete: () => void;
 }
 
-const sqlScript = `BEGIN;
+export const ConnectionSetupPage: React.FC<ConnectionSetupPageProps> = ({ onSetupComplete }) => {
+  const [isDismissed, setIsDismissed] = useState(false);
+  const [supabaseUrl, setSupabaseUrl] = useState('');
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState('');
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
--- 1) public.users は壊さない：不足カラムだけ追加
-ALTER TABLE IF EXISTS public.users
-  ADD COLUMN IF NOT EXISTS can_use_anything_analysis boolean DEFAULT true;
+  useEffect(() => {
+    // Prefill from localStorage if available, otherwise leave empty for user input
+    setSupabaseUrl(localStorage.getItem('supabaseUrl') || '');
+    setSupabaseAnonKey(localStorage.getItem('supabaseAnonKey') || '');
+  }, []);
 
--- 2) updated_at トリガー（存在するテーブルにだけ付与）
-CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+  const handleSaveAndComplete = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
 
-DO $$
-BEGIN
-  IF to_regclass('public.applications') IS NOT NULL THEN
-    ALTER TABLE public.applications
-      ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-    DROP TRIGGER IF EXISTS on_applications_update ON public.applications;
-    CREATE TRIGGER on_applications_update
-      BEFORE UPDATE ON public.applications
-      FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-  END IF;
+    if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
+      setError('Supabase Project URL と Anon Key は必須です。');
+      return;
+    }
+    if (!supabaseUrl.startsWith('http://') && !supabaseUrl.startsWith('https://')) {
+        setError('有効なHTTPまたはHTTPSのURLを入力してください。');
+        return;
+    }
+    
+    setIsSaving(true);
+    try {
+      localStorage.setItem('supabaseUrl', supabaseUrl.trim());
+      localStorage.setItem('supabaseAnonKey', supabaseAnonKey.trim());
+      setIsDismissed(true);
+      onSetupComplete();
+    } catch (err) {
+      setError('設定の保存中にエラーが発生しました。');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-  IF to_regclass('public.estimates') IS NOT NULL THEN
-    ALTER TABLE public.estimates
-      ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-    DROP TRIGGER IF EXISTS on_estimates_update ON public.estimates;
-    CREATE TRIGGER on_estimates_update
-      BEFORE UPDATE ON public.estimates
-      FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-  END IF;
+  if (isDismissed) return null;
 
-  IF to_regclass('public.projects') IS NOT NULL THEN
-    ALTER TABLE public.projects
-      ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-    DROP TRIGGER IF EXISTS on_projects_update ON public.projects;
-    CREATE TRIGGER on_projects_update
-      BEFORE UPDATE ON public.projects
-      FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-  END IF;
-END $$;
+  const inputClass = "w-full text-base bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed";
+  const labelClass = "block text-base font-medium text-slate-700 dark:text-slate-300 mb-1.5";
 
--- 3) 参照系のみ RLS を段階導入（ALL権限は付けない）
-ALTER TABLE IF EXISTS public.forms             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.application_codes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.approval_routes   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.invoices          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.invoice_items     ENABLE ROW LEVEL SECURITY;
-
-DO $$
-BEGIN
-  IF to_regclass('public.forms') IS NOT NULL THEN
-    DROP POLICY IF EXISTS "Allow authenticated read access" ON public.forms;
-    CREATE POLICY "Allow authenticated read access" ON public.forms
-      FOR SELECT TO authenticated USING (true);
-  END IF;
-
-  IF to_regclass('public.application_codes') IS NOT NULL THEN
-    DROP POLICY IF EXISTS "Allow authenticated read access" ON public.application_codes;
-    CREATE POLICY "Allow authenticated read access" ON public.application_codes
-      FOR SELECT TO authenticated USING (true);
-  END IF;
-
-  IF to_regclass('public.approval_routes') IS NOT NULL THEN
-    DROP POLICY IF EXISTS "Allow authenticated read access" ON public.approval_routes;
-    CREATE POLICY "Allow authenticated read access" ON public.approval_routes
-      FOR SELECT TO authenticated USING (true);
-  END IF;
-
-  IF to_regclass('public.invoices') IS NOT NULL THEN
-    DROP POLICY IF EXISTS "Allow authenticated read access" ON public.invoices;
-    CREATE POLICY "Allow authenticated read access" ON public.invoices
-      FOR SELECT TO authenticated USING (true);
-  END IF;
-
-  IF to_regclass('public.invoice_items') IS NOT NULL THEN
-    DROP POLICY IF EXISTS "Allow authenticated read access" ON public.invoice_items;
-    CREATE POLICY "Allow authenticated read access" ON public.invoice_items
-      FOR SELECT TO authenticated USING (true);
-  END IF;
-END $$;
-
--- 4) 基本権限
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
-
--- 5) RLS policies for user profiles to fix login loop
-ALTER TABLE IF EXISTS public.users     ENABLE ROW LEVEL SECURITY;
-
--- Grant permissions to authenticated role BEFORE applying policies
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.users TO authenticated;
-
--- Policies for public.users table (id = auth.uid())
-DROP POLICY IF EXISTS "Allow individual access on users" ON public.users;
-CREATE POLICY "Allow individual access on users" ON public.users
-  FOR ALL TO authenticated USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
-
--- 6) PostgREST にスキーマ変更通知
-NOTIFY pgrst, 'reload schema';
-
-COMMIT;`;
-
-export const ConnectionSetupPage: React.FC<Props> = ({ onRetry }) => {
   return (
-    <div className="fixed inset-0 bg-slate-100 dark:bg-slate-900 flex justify-center items-center z-[200] p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">データベースセットアップガイド</h2>
-          <p className="mt-1 text-slate-500 dark:text-slate-400">
-            アプリケーションの初回起動時に必要なデータベースのテーブルとポリシーを設定します。
-          </p>
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-[200] p-4 font-sans">
+      <form onSubmit={handleSaveAndComplete} className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl p-8 space-y-6 text-center">
+        <div className="flex justify-center items-center">
+          <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+            <Database className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+          </div>
         </div>
-        <div className="p-6 space-y-4 overflow-y-auto">
-            <div className="text-base text-slate-700 dark:text-slate-300 space-y-3">
-                <p className="flex items-center gap-2">
-                    <span className="font-bold bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center">1</span>
-                    Supabaseプロジェクトの <a href="https://supabase.com/dashboard/project/_/sql" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">SQL Editor</a> を開きます。
-                    <ArrowRight className="w-4 h-4" />
-                    「New query」をクリックします。
-                </p>
-                 <p className="flex items-center gap-2">
-                    <span className="font-bold bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center">2</span>
-                    以下のスクリプトを全文コピーして、SQL Editorに貼り付けます。
-                </p>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Supabase接続設定が必要です</h1>
+        <p className="text-lg text-slate-600 dark:text-slate-300">
+          アプリケーションの動作にはSupabaseデータベースへの接続情報が必要です。
+          以下のフィールドに <strong className="text-blue-600 dark:text-blue-400">Project URL</strong> と <strong className="text-blue-600 dark:text-blue-400">Anon Key</strong> を入力し、保存してください。
+        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          これらの情報はSupabaseプロジェクトの <span className="font-mono text-blue-500">API設定</span> ページで確認できます。
+        </p>
+
+        {error && (
+            <div className="flex items-center gap-2 rounded-md bg-red-50 dark:bg-red-900/30 p-3 text-sm text-red-700 dark:text-red-200">
+                <AlertTriangle className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                {error}
             </div>
-             <pre className="bg-slate-100 dark:bg-slate-900 p-4 rounded-lg text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap max-h-80 overflow-auto">
-                <code>{sqlScript}</code>
-            </pre>
-            <div className="text-base text-slate-700 dark:text-slate-300 space-y-3">
-                <p className="flex items-center gap-2">
-                    <span className="font-bold bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center">3</span>
-                    「RUN」ボタンをクリックしてスクリプトを実行します。
-                </p>
-            </div>
+        )}
+
+        <div className="space-y-4 text-left">
+          <div>
+            <label htmlFor="supabase-url" className={labelClass}>Supabase Project URL *</label>
+            <input
+              type="url"
+              id="supabase-url"
+              value={supabaseUrl}
+              onChange={(e) => setSupabaseUrl(e.target.value)}
+              placeholder="例: https://abcdefghijklmnop.supabase.co"
+              className={inputClass}
+              required
+              disabled={isSaving}
+              autoComplete="url"
+            />
+          </div>
+          <div>
+            <label htmlFor="supabase-anon-key" className={labelClass}>Supabase Project Anon Key *</label>
+            <input
+              type="text"
+              id="supabase-anon-key"
+              value={supabaseAnonKey}
+              onChange={(e) => setSupabaseAnonKey(e.target.value)}
+              placeholder="例: eyJhbGciOiJIUzI1NiI..."
+              className={inputClass}
+              required
+              disabled={isSaving}
+              autoComplete="off"
+            />
+          </div>
         </div>
-        <div className="flex justify-end p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700">
-          <button
-            type="button"
-            onClick={onRetry}
-            className="w-48 flex items-center justify-center bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg shadow-md hover:bg-blue-700"
-          >
-            設定完了、アプリを再読み込み
+        
+        <div className="flex justify-center gap-4 pt-4">
+          <button type="submit" disabled={isSaving} className="w-64 flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-2.5 px-6 rounded-lg shadow-md hover:bg-blue-700 disabled:bg-slate-400">
+            {isSaving ? <Loader className="w-5 h-5 animate-spin" /> : '設定を保存して開始'}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 };

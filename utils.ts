@@ -30,6 +30,19 @@ export const getEnvValue = (key: string): string | undefined => {
     if (metaEnv[viteKey] !== undefined) {
       return metaEnv[viteKey];
     }
+    // NEW: Check for NEXT_PUBLIC_ prefix
+    const nextPublicKey = `NEXT_PUBLIC_${key}`;
+    if (metaEnv[nextPublicKey] !== undefined) {
+      return metaEnv[nextPublicKey];
+    }
+  }
+
+  // NEW: Also check process.env for NEXT_PUBLIC_ in case it's a Node-like env
+  if (typeof process !== 'undefined' && process.env) {
+      const nextPublicKey = `NEXT_PUBLIC_${key}`;
+      if (process.env[nextPublicKey] !== undefined) {
+          return process.env[nextPublicKey];
+      }
   }
 
   return undefined;

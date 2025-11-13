@@ -88,9 +88,11 @@ const InvoiceDetailModal: React.FC<{ invoice: Invoice; onClose: () => void; onMa
                     </div>
                 </div>
                 <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                    <span className={`px-3 py-1 text-sm font-medium rounded-full capitalize ${invoice.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{invoice.status}</span>
+                    {/* FIX: Correct InvoiceStatus enum usage */}
+                    <span className={`px-3 py-1 text-sm font-medium rounded-full capitalize ${invoice.status === InvoiceStatus.Paid ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{invoice.status}</span>
                     <div>
-                        {invoice.status !== 'paid' && (
+                        {/* FIX: Correct InvoiceStatus enum usage */}
+                        {invoice.status !== InvoiceStatus.Paid && (
                             <button
                                 onClick={() => onMarkPaid(invoice)}
                                 className="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700"
@@ -258,8 +260,9 @@ const BillingManagement: React.FC<BillingManagementProps> = ({ jobs, onRefreshDa
                                     <td className="px-6 py-4 text-right font-semibold">{JPY(inv.totalAmount)}</td>
                                     <td className="px-6 py-4 text-center">
                                          <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full capitalize ${
-                                            inv.status === 'paid' ? 'bg-green-100 text-green-800' :
-                                            inv.status === 'void' ? 'bg-red-100 text-red-800' :
+                                            // FIX: Correct InvoiceStatus enum usage
+                                            inv.status === InvoiceStatus.Paid ? 'bg-green-100 text-green-800' :
+                                            inv.status === InvoiceStatus.Void ? 'bg-red-100 text-red-800' :
                                             'bg-yellow-100 text-yellow-800'
                                          }`}>{inv.status}</span>
                                     </td>

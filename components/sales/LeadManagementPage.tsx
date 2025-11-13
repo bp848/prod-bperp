@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Lead, LeadStatus, SortConfig, Toast, ConfirmationDialogProps, EmployeeUser } from '../../types.ts';
 import { Loader, Pencil, Trash2, Mail, Eye, CheckCircle, Lightbulb, List, KanbanSquare } from '../Icons.tsx';
@@ -29,7 +30,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
     const [selectedLeadIndex, setSelectedLeadIndex] = useState<number>(0);
-    const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+    const [viewMode, setViewMode, ] = useState<'list' | 'kanban'>('list');
     const [editingStatusLeadId, setEditingStatusLeadId] = useState<string | null>(null);
     const [isMarkingContacted, setIsMarkingContacted] = useState<string | null>(null);
 
@@ -307,6 +308,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                 currentUser={currentUser}
                 isAIOff={isAIOff}
                 onAddEstimate={onAddEstimate}
+                onRefresh={onRefresh}
             />
         </>
     );

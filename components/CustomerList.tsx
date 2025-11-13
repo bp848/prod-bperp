@@ -78,9 +78,10 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, searchTerm, onSe
     }
     setIsGeneratingEmail(customer.id);
     try {
-      const { subject, body } = await generateSalesEmail(customer, currentUser.name);
+      // FIX: Use bodyText instead of body, as per GeneratedEmailContent type
+      const { subject, bodyText } = await generateSalesEmail(customer, currentUser.name);
       const signature = createSignature();
-      const finalBody = `${body}\n\n${signature}`;
+      const finalBody = `${bodyText}\n\n${signature}`;
       const mailto = `mailto:${customer.customerContactInfo || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(finalBody)}`;
       window.open(mailto, '_blank');
       addToast('提案メールの下書きを作成しました。', 'success');

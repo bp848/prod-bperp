@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { startBusinessConsultantChat } from '../services/geminiService';
 import { Chat } from '@google/genai';
 import { Loader, Send, Sparkles } from './Icons';
@@ -38,6 +39,7 @@ const AIChatPage: React.FC<AIChatPageProps> = ({ currentUser, jobs, customers, j
     }, [messages, isLoading]);
 
     useEffect(() => {
+        // FIX: Call the new startBusinessConsultantChat function
         chatRef.current = startBusinessConsultantChat();
         if (mounted.current) {
             setMessages([{

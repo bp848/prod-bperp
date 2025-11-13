@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { Project } from '../../types.ts';
 import { X, Sparkles, FileText } from '../Icons.tsx';
@@ -21,7 +19,8 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ project, onClos
                         <p className="text-sm text-slate-500 dark:text-slate-400">{project.customerName}</p>
                     </div>
                     <div className="flex items-center gap-4">
-                        <ProjectStatusBadge status={project.status} />
+                        {/* FIX: Use projectStatus instead of status */}
+                        <ProjectStatusBadge status={project.projectStatus} />
                         <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                             <X className="w-6 h-6" />
                         </button>

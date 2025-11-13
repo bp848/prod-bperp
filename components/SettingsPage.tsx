@@ -1,23 +1,33 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import SupabaseCredentialsModal from './SupabaseCredentialsModal.tsx'; // Changed to default import
 import { Loader, Save, Mail, CheckCircle, Database, Key } from './Icons.tsx';
+import { hasSupabaseCredentials } from '../services/supabaseClient.ts';
 import { Lightbulb } from './Icons.tsx';
 import { Toast } from '../types.ts';
+import { SUPABASE_URL as HARDCODED_SUPABASE_URL, SUPABASE_KEY as HARDCODED_SUPABASE_KEY } from '../supabaseCredentials.ts';
+
 
 interface SettingsPageProps {
     addToast: (message: string, type: Toast['type']) => void;
 }
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ addToast }) => {
+    const [supabaseUrl, setSupabaseUrl] = useState('');
+    const [supabaseAnonKey, setSupabaseAnonKey] = useState('');
+    const [googleClientId, setGoogleClientId] = useState('');
+    const [googleClientSecret, setGoogleClientSecret] = useState('');
+
     const [smtpSettings, setSmtpSettings] = useState({
-        host: 'smtp.example.com',
+        host: '',
         port: 587,
-        username: 'user@example.com',
-        password: 'password123',
-        senderEmail: 'noreply@example.com',
+        username: '',
+        password: '',
+        senderEmail: '',
         senderName: 'MQ会計管理システム',
         encryption: 'tls',
     });
+
     const [signatureSettings, setSignatureSettings] = useState({
         companyName: '',
         department: '',
@@ -26,30 +36,37 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ addToast }) => {
         email: '',
         website: '',
     });
-    const [supabaseUrl, setSupabaseUrl] = useState('');
-    const [supabaseAnonKey, setSupabaseAnonKey] = useState('');
-    const [googleClientId, setGoogleClientId] = useState('');
-    const [googleClientSecret, setGoogleClientSecret] = useState('');
 
     const [isSaving, setIsSaving] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
+    const [showSupabaseModal, setShowSupabaseModal] = useState(false);
+    const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(false);
     const mounted = useRef(true);
 
     useEffect(() => {
         mounted.current = true;
         
         try {
+            const savedSupabaseUrl = localStorage.getItem('supabaseUrl');
+            const savedSupabaseAnonKey = localStorage.getItem('supabaseAnonKey');
+            
+            // Prioritize localStorage, then fallback to hardcoded values from supabaseCredentials.ts
+            setSupabaseUrl(savedSupabaseUrl || HARDCODED_SUPABASE_URL);
+            setSupabaseAnonKey(savedSupabaseAnonKey || HARDCODED_SUPABASE_KEY);
+
+            const savedGoogleClientId = localStorage.getItem('googleClientId');
+            const savedGoogleClientSecret = localStorage.getItem('googleClientSecret');
+
+            if (savedGoogleClientId) setGoogleClientId(savedGoogleClientId);
+            if (savedGoogleClientSecret) setGoogleClientSecret(savedGoogleClientSecret);
+
+            setIsSupabaseConfigured(hasSupabaseCredentials());
+
             const savedSignature = localStorage.getItem('signatureSettings');
             if (savedSignature) setSignatureSettings(JSON.parse(savedSignature));
 
             const savedSmtp = localStorage.getItem('smtpSettings');
             if(savedSmtp) setSmtpSettings(JSON.parse(savedSmtp));
-
-            setSupabaseUrl(localStorage.getItem('supabaseUrl') || '');
-            setSupabaseAnonKey(localStorage.getItem('supabaseAnonKey') || '');
-            setGoogleClientId(localStorage.getItem('googleClientId') || '');
-            setGoogleClientSecret(localStorage.getItem('googleClientSecret') || '');
-
         } catch (error) {
             console.error("Failed to load settings from localStorage", error);
             addToast('設定の読み込みに失敗しました。', 'error');
@@ -59,6 +76,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ addToast }) => {
             mounted.current = false;
         };
     }, [addToast]);
+
+    const handleSupabaseChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        if (name === 'supabaseUrl') setSupabaseUrl(value);
+        if (name === 'supabaseAnonKey') setSupabaseAnonKey(value);
+    };
+
+    const handleGoogleOAuthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        if (name === 'googleClientId') setGoogleClientId(value);
+        if (name === 'googleClientSecret') setGoogleClientSecret(value);
+    };
 
     const handleSmtpChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -75,12 +104,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ addToast }) => {
         setIsSaving(true);
         
         try {
-            localStorage.setItem('signatureSettings', JSON.stringify(signatureSettings));
-            localStorage.setItem('smtpSettings', JSON.stringify(smtpSettings));
             localStorage.setItem('supabaseUrl', supabaseUrl);
             localStorage.setItem('supabaseAnonKey', supabaseAnonKey);
             localStorage.setItem('googleClientId', googleClientId);
             localStorage.setItem('googleClientSecret', googleClientSecret);
+            localStorage.setItem('signatureSettings', JSON.stringify(signatureSettings));
+            localStorage.setItem('smtpSettings', JSON.stringify(smtpSettings));
             
             addToast('設定を保存しました。変更を適用するためにリロードします。', 'success');
             
@@ -121,56 +150,42 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ addToast }) => {
         <form onSubmit={handleSave} className="space-y-8">
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-                    <h2 className="text-xl font-semibold text-slate-800 dark:text-white flex items-center gap-2"><Database className="w-6 h-6"/>Supabase 接続設定</h2>
+                    <h2 className="text-xl font-semibold text-slate-800 dark:text-white">Supabase 接続設定</h2>
                     <p className="mt-1 text-base text-slate-500 dark:text-slate-400">
-                        アプリケーションが接続するSupabaseプロジェクトの情報を設定します。
+                        SupabaseプロジェクトのURLとAnon Keyを設定します。これはアプリケーションの基盤となります。
                     </p>
                 </div>
-                <div className="p-6 space-y-6">
-                    <div>
-                        <label htmlFor="supabaseUrl" className={labelClass}>Supabase URL</label>
-                        <input type="url" id="supabaseUrl" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} className={inputClass} placeholder="https://xxxx.supabase.co" />
-                    </div>
-                    <div>
-                        <label htmlFor="supabaseAnonKey" className={labelClass}>Supabase Anon Key (public)</label>
-                        <input type="password" id="supabaseAnonKey" value={supabaseAnonKey} onChange={e => setSupabaseAnonKey(e.target.value)} className={inputClass} placeholder="eyJhbGciOi..." />
+                <div className="p-6 space-y-4">
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <Database className="w-7 h-7 text-green-500"/>
+                            <p className="font-semibold text-slate-800 dark:text-white">Supabaseの接続状態:</p>
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${isSupabaseConfigured ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                {isSupabaseConfigured ? '接続済み' : '未接続'}
+                            </span>
+                        </div>
+                        <button type="button" onClick={() => setShowSupabaseModal(true)} className="flex items-center gap-2 bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700">
+                            <Key className="w-5 h-5"/> {isSupabaseConfigured ? '接続情報を編集' : '接続情報を設定'}
+                        </button>
                     </div>
                 </div>
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-                    <h2 className="text-xl font-semibold text-slate-800 dark:text-white flex items-center gap-2"><Key className="w-6 h-6"/>Google OAuth 設定</h2>
+                    <h2 className="text-xl font-semibold text-slate-800 dark:text-white">Google OAuth 設定</h2>
                     <p className="mt-1 text-base text-slate-500 dark:text-slate-400">
-                        Googleログインに使用する認証情報です。<strong className="text-yellow-600 dark:text-yellow-400">これらの情報はSupabaseのダッシュボードで設定する必要があります。</strong>
+                        Googleアカウントでのログインを有効にするための設定です。
                     </p>
                 </div>
-                <div className="p-6 space-y-6">
+                <div className="p-6 space-y-4">
                     <div>
-                        <label htmlFor="googleClientId" className={labelClass}>
-                            Google Client ID
-                            <span className="relative group ml-2 text-slate-400 dark:text-slate-500 cursor-help">
-                                <Lightbulb className="w-4 h-4 inline-block" />
-                                <span className="absolute left-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 text-xs text-white bg-slate-700 dark:bg-slate-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                    このIDは、<strong className='text-blue-300'>Supabaseプロジェクトの認証設定（Authentication &gt; Providers &gt; Google）で設定されるべきものです。</strong> クライアントアプリがGoogle認証時に直接使用するわけではありません。
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-700 dark:border-t-slate-900"></div>
-                                </span>
-                            </span>
-                        </label>
-                        <input type="text" id="googleClientId" value={googleClientId} onChange={e => setGoogleClientId(e.target.value)} className={inputClass} placeholder="....apps.googleusercontent.com" />
+                        <label htmlFor="googleClientId" className={labelClass}>Google Client ID</label>
+                        <input type="text" id="googleClientId" name="googleClientId" value={googleClientId} onChange={handleGoogleOAuthChange} className={inputClass} placeholder="YOUR_GOOGLE_CLIENT_ID" />
                     </div>
                     <div>
-                        <label htmlFor="googleClientSecret" className={labelClass}>
-                            Google Client Secret
-                            <span className="relative group ml-2 text-slate-400 dark:text-slate-500 cursor-help">
-                                <Lightbulb className="w-4 h-4 inline-block" />
-                                <span className="absolute left-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 text-xs text-white bg-slate-700 dark:bg-slate-900 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                    このシークレットは、<strong className='text-blue-300'>Supabaseプロジェクトの認証設定で設定されます。</strong> Client IDと同様に、クライアントアプリがGoogle認証時に直接使用するわけではありません。
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-700 dark:border-t-slate-900"></div>
-                                </span>
-                            </span>
-                        </label>
-                        <input type="password" id="googleClientSecret" value={googleClientSecret} onChange={e => setGoogleClientSecret(e.target.value)} className={inputClass} placeholder="GOCSPX-..." />
+                        <label htmlFor="googleClientSecret" className={labelClass}>Google Client Secret</label>
+                        <input type="password" id="googleClientSecret" name="googleClientSecret" value={googleClientSecret} onChange={handleGoogleOAuthChange} className={inputClass} placeholder="YOUR_GOOGLE_CLIENT_SECRET" />
                     </div>
                 </div>
             </div>
@@ -286,6 +301,25 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ addToast }) => {
                     <span>{isSaving ? '保存中...' : 'すべての設定を保存'}</span>
                 </button>
             </div>
+            {showSupabaseModal && (
+                <SupabaseCredentialsModal 
+                    isOpen={showSupabaseModal} 
+                    onClose={() => {
+                        setShowSupabaseModal(false);
+                        setIsSupabaseConfigured(hasSupabaseCredentials()); // Re-check config after modal close
+                    }} 
+                    initialSupabaseUrl={supabaseUrl} 
+                    initialSupabaseAnonKey={supabaseAnonKey}
+                    onSave={(url, key) => {
+                        localStorage.setItem('supabaseUrl', url);
+                        localStorage.setItem('supabaseAnonKey', key);
+                        setSupabaseUrl(url);
+                        setSupabaseAnonKey(key);
+                        setIsSupabaseConfigured(true);
+                        addToast('Supabase接続情報を保存しました。', 'success');
+                    }}
+                />
+            )}
         </form>
     );
 };
