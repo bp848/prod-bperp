@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { submitApplication } from '../../services/dataService.ts';
 import { Loader, Sparkles, AlertTriangle } from '../Icons.tsx';

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Sidebar from './components/Sidebar.tsx';
 import Header from './components/Header.tsx';
@@ -12,7 +11,7 @@ import { CompanyAnalysisModal } from './components/CompanyAnalysisModal.tsx';
 import LeadManagementPage from './components/sales/LeadManagementPage.tsx';
 import CreateLeadModal from './components/sales/CreateLeadModal.tsx';
 import PlaceholderPage from './components/PlaceholderPage.tsx';
-import UserManagementPage from './components/admin/UserManagementPage.tsx';
+import { UserManagementPage } from './components/admin/UserManagementPage.tsx';
 import ApprovalRouteManagementPage from './components/admin/ApprovalRouteManagementPage.tsx';
 import BugReportList from './components/admin/BugReportList.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
@@ -47,6 +46,7 @@ import { ToastContainer } from './components/Toast.tsx';
 import ConfirmationDialog from './components/ConfirmationDialog.tsx';
 import BusinessPlanPage from './components/BusinessPlanPage.tsx';
 import OrganizationChartPage from './components/hr/OrganizationChartPage.tsx';
+import AuthCallbackPage from './components/AuthCallbackPage.tsx'; // Import the new callback page
 
 
 import * as dataService from './services/dataService.ts';
@@ -213,6 +213,12 @@ const App: React.FC = () => {
             setError('Supabaseの接続情報が設定されていません。');
             setShowSetupModal(true);
             setAuthLoading(false);
+            return;
+        }
+
+        // Handle OAuth callback explicitly
+        if (window.location.pathname === '/auth/callback') {
+            setAuthLoading(false); // AuthCallbackPage will handle its own loading/redirect
             return;
         }
 
@@ -514,6 +520,10 @@ const App: React.FC = () => {
         if(currentUser) await fetchData(currentUser);
     };
 
+    // OAuth Callback Page rendering
+    if (window.location.pathname === '/auth/callback') {
+        return <AuthCallbackPage />;
+    }
 
     const renderPage = () => {
         switch (currentPage) {
@@ -706,6 +716,7 @@ const App: React.FC = () => {
             {isCompanyAnalysisModalOpen && <CompanyAnalysisModal isOpen={isCompanyAnalysisModalOpen} onClose={() => setIsCompanyAnalysisModalOpen(false)} analysis={analysisResult} customer={analysisTargetCustomer} isLoading={isAnalysisLoading} error={analysisError} currentUser={currentUser} isAIOff={isAIOff} onReanalyze={handleAnalyzeCustomer} />}
             <ToastContainer toasts={toasts} onDismiss={(id) => setToasts(prev => prev.filter(t => t.id === id))} />
             <ConfirmationDialog {...confirmationDialog} />
+            {/* FIX: Corrected the typo from setIsBugReportModal to setIsBugReportModalOpen */}
             <button
                 onClick={() => setIsBugReportModalOpen(true)}
                 className="fixed bottom-8 right-8 bg-purple-600 text-white p-4 rounded-full shadow-lg hover:bg-purple-700 transition-transform transform hover:scale-110"

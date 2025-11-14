@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { Job, SortConfig } from '../types.ts';
 import JobStatusBadge from './JobStatusBadge.tsx';

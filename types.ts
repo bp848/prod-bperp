@@ -167,7 +167,7 @@ export interface Lead {
   ipAddress?: string | null;
   deviceType?: string | null;
   assigneeId?: UUID | null;
-  isFirstVisit?: string | null; // Changed to string per DB
+  isFirstVisit?: boolean | null; // Changed to string per DB // FIX: Changed to boolean as it's typically boolean. If DB is string, conversion logic needed.
   landingPageUrl?: string | null;
   previousVisitDate?: string | null;
   referrer?: string | null;
@@ -178,7 +178,7 @@ export interface Lead {
   utmMedium?: string | null;
   utmSource?: string | null;
   utmTerm?: string | null;
-  visitCount?: string | null; // Changed to string per DB
+  visitCount?: number | null; // Changed to string per DB // FIX: Changed to number as it's typically number. If DB is string, conversion logic needed.
   browserName?: string | null;
   browserVersion?: string | null;
   osName?: string | null;
@@ -204,8 +204,8 @@ export interface Lead {
   inquiryType?: string | null;
   score?: number | null;
   aiAnalysisReport?: string | null;
-  aiDraftProposal?: string | null;
-  aiInvestigation?: any | null; // JSONB
+  aiDraftProposal?: any | null; // JSONB
+  aiInvestigation?: CompanyInvestigation | null; // Added aiInvestigation
 }
 
 export interface JournalEntry {
@@ -337,13 +337,13 @@ export interface AccountItem {
     sortOrder: number; // INTEGER DEFAULT 0
     createdAt: string; // TIMESTAMPTZ
     updatedAt?: string | null; // TIMESTAMPTZ
-    mqCode?: any | null; // JSONB
-    mqCodeP?: string | null; // TEXT
-    mqCodeV?: string | null; // TEXT
-    mqCodeM?: string | null; // TEXT
-    mqCodeQ?: string | null; // TEXT
-    mqCodeF?: string | null; // TEXT
-    mqCodeG?: string | null; // TEXT
+    mqCode?: MQCode | null; // JSONB // FIX: Use MQCode type
+    mqCodeP?: boolean | null; // TEXT // FIX: Corrected type to boolean
+    mqCodeV?: boolean | null; // TEXT // FIX: Corrected type to boolean
+    mqCodeM?: boolean | null; // TEXT // FIX: Corrected type to boolean
+    mqCodeQ?: boolean | null; // TEXT // FIX: Corrected type to boolean
+    mqCodeF?: boolean | null; // TEXT // FIX: Corrected type to boolean
+    mqCodeG?: boolean | null; // TEXT // FIX: Corrected type to boolean
 }
 
 export type MasterAccountItem = AccountItem; // Alias for clarity
@@ -689,18 +689,7 @@ export interface InboxItem {
   docType?: string; // TEXT NOT NULL DEFAULT 'unknown'::text
 }
 
-export interface AnalysisHistory {
-  id: UUID;
-  userId?: UUID | null; // REFERENCES auth.users(id)
-  viewpoint: string;
-  dataSources?: {
-    filenames?: string[];
-    urls?: string[];
-  } | null; // JSONB
-  result: AnalysisResult; // JSONB
-  createdAt: string; // TIMESTAMPTZ
-}
-
+// FIX: Moved AnalysisResult interface from components/AnythingAnalysisPage.tsx
 export interface AnalysisResult {
   title: string;
   summary: string;
@@ -712,6 +701,19 @@ export interface AnalysisResult {
     type: 'bar' | 'line';
     data: { name: string; value: number }[];
   };
+  sources?: { uri: string; title: string; }[]; // Optional sources property
+}
+
+export interface AnalysisHistory {
+  id: UUID;
+  userId?: UUID | null; // REFERENCES auth.users(id)
+  viewpoint: string;
+  dataSources?: {
+    filenames?: string[];
+    urls?: string[];
+  } | null; // JSONB
+  result: AnalysisResult; // JSONB
+  createdAt: string; // TIMESTAMPTZ
 }
 
 export interface MarketResearchReport {

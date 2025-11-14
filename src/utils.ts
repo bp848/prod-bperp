@@ -17,57 +17,74 @@ const getImportMetaEnv = (): Record<string, string | undefined> | undefined => {
   }
 };
 
+// FIX: isValidEnvString to be more robust by checking for "YOUR_" placeholders and strictly empty strings
 const isValidEnvString = (value: string | null | undefined): boolean => {
-  return !!(value && value.trim() !== '' && !value.includes('YOUR_'));
+  return !!(value && value.trim() !== '' && !value.toUpperCase().includes('YOUR_'));
 };
 
 export const getEnvValue = (key: string): string | undefined => {
-  // Special handling for SITE_URL to prioritize NEXT_PUBLIC_SITE_URL
+  // Special handling for SITE_URL to prioritize localStorage and NEXT_PUBLIC_SITE_URL
   if (key === 'SITE_URL') {
-    // Priority 1: NEXT_PUBLIC_SITE_URL from process.env
+    // Priority 1: localStorage (user-saved via settings or AppSiteUrlModal)
+    // FIX: Use `appSiteUrl` from localStorage. This is explicitly set in SettingsPage and AppSiteUrlModal.
+    const localSiteUrl = localStorage.getItem('appSiteUrl');
+    if (isValidEnvString(localSiteUrl)) {
+      console.log("getEnvValue('SITE_URL') - Using localStorage 'appSiteUrl'.");
+      return localSiteUrl;
+    }
+
+    // Priority 2: NEXT_PUBLIC_SITE_URL from process.env (for Node-like environments)
     const nextPublicProcessEnv = (typeof process !== 'undefined' && process.env) ? process.env['NEXT_PUBLIC_SITE_URL'] : undefined;
     if (isValidEnvString(nextPublicProcessEnv)) {
+      console.log("getEnvValue('SITE_URL') - Using process.env.NEXT_PUBLIC_SITE_URL.");
       return nextPublicProcessEnv;
     }
 
-    // Priority 2: NEXT_PUBLIC_SITE_URL from import.meta.env
+    // Priority 3: NEXT_PUBLIC_SITE_URL from import.meta.env (for Vite/Webpack-like environments)
     const metaEnv = getImportMetaEnv();
     const nextPublicMetaEnv = metaEnv ? metaEnv['NEXT_PUBLIC_SITE_URL'] : undefined;
     if (isValidEnvString(nextPublicMetaEnv)) {
+      console.log("getEnvValue('SITE_URL') - Using import.meta.env.NEXT_PUBLIC_SITE_URL.");
       return nextPublicMetaEnv;
     }
   }
 
-  // General checks for other keys or if SITE_URL wasn't found in NEXT_PUBLIC_
-  // Priority 3: Direct key from process.env
+  // General checks for other keys or if SITE_URL wasn't found in NEXT_PUBLIC_ or localStorage
+  // Priority 4: Direct key from process.env
   const directProcessEnv = (typeof process !== 'undefined' && process.env) ? process.env[key] : undefined;
   if (isValidEnvString(directProcessEnv)) {
+    console.log(`getEnvValue('${key}') - Using process.env.${key}.`);
     return directProcessEnv;
   }
 
-  // Priority 4: Direct key from import.meta.env
+  // Priority 5: Direct key from import.meta.env
   const metaEnv = getImportMetaEnv(); // Re-get in case it wasn't fetched above
   const directMetaEnv = metaEnv ? metaEnv[key] : undefined;
   if (isValidEnvString(directMetaEnv)) {
+    console.log(`getEnvValue('${key}') - Using import.meta.env.${key}.`);
     return directMetaEnv;
   }
 
-  // Priority 5: VITE_ prefix from import.meta.env
+  // Priority 6: VITE_ prefix from import.meta.env
   const viteMetaEnv = metaEnv ? metaEnv[`VITE_${key}`] : undefined;
   if (isValidEnvString(viteMetaEnv)) {
+    console.log(`getEnvValue('${key}') - Using import.meta.env.VITE_${key}.`);
     return viteMetaEnv;
   }
   
-  // Priority 6: NEXT_PUBLIC_ prefix for general keys (if not handled for SITE_URL specifically)
+  // Priority 7: NEXT_PUBLIC_ prefix for general keys (if not handled for SITE_URL specifically)
   const nextPublicGeneralMetaEnv = metaEnv ? metaEnv[`NEXT_PUBLIC_${key}`] : undefined;
   if (isValidEnvString(nextPublicGeneralMetaEnv)) {
+    console.log(`getEnvValue('${key}') - Using import.meta.env.NEXT_PUBLIC_${key}.`);
     return nextPublicGeneralMetaEnv;
   }
   const nextPublicGeneralProcessEnv = (typeof process !== 'undefined' && process.env) ? process.env[`NEXT_PUBLIC_${key}`] : undefined;
   if (isValidEnvString(nextPublicGeneralProcessEnv)) {
+    console.log(`getEnvValue('${key}') - Using process.env.NEXT_PUBLIC_${key}.`);
     return nextPublicGeneralProcessEnv;
   }
 
+  console.log(`getEnvValue('${key}') - No valid value found.`);
   return undefined;
 };
 

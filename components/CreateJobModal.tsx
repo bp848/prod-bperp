@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Job, JobStatus, AISuggestions, InvoiceStatus, ManufacturingStatus } from '../types.ts';
 import { PAPER_TYPES, FINISHING_OPTIONS } from '../constants.ts';

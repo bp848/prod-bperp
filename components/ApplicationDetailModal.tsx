@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ApplicationWithDetails, User } from '../types.ts';
 import { X, CheckCircle, Send, Loader } from './Icons.tsx';

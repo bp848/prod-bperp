@@ -1,15 +1,16 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabaseClient.ts';
 import { Loader, Mail, GoogleIcon } from './Icons.tsx'; // Import GoogleIcon
 import { getEnvValue } from '../utils.ts'; // Import getEnvValue
+import AppSiteUrlModal from './AppSiteUrlModal.tsx'; // Import the new modal
 
 interface LoginPageProps {
   onMagicLinkSent: () => void;
   magicLinkSent: boolean;
+  setShowSiteUrlModal: (show: boolean) => void; // New prop to control modal visibility in App.tsx
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onMagicLinkSent, magicLinkSent }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onMagicLinkSent, magicLinkSent, setShowSiteUrlModal }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -90,6 +91,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onMagicLinkSent, magicLinkSent })
             const configError = "環境変数 SITE_URL が設定されていません。SupabaseのOAuthリダイレクトには必須です。管理者は .env または設定ページで正しいURL (例: https://erp.b-p.co.jp) を設定してください。";
             setError(configError);
             setLoading(false);
+            setShowSiteUrlModal(true); // Show the modal
             console.error("3. SITE_URL configuration error: OAuth flow prevented.", configError);
             console.log("--- Google Login Debug Info End (Error) ---");
             return;

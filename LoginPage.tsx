@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../services/supabaseClient.ts';
+import { supabase } from './services/supabaseClient.ts';
 import { Loader, Mail, GoogleIcon } from './Icons.tsx'; // Import GoogleIcon
 import { getEnvValue } from '../utils.ts'; // Import getEnvValue
 
@@ -73,46 +73,36 @@ const LoginPage: React.FC<LoginPageProps> = ({ onMagicLinkSent, magicLinkSent })
     setLoading(true);
     setError('');
     try {
-        const envSiteUrl = getEnvValue('SITE_URL');
-        
-        console.log("--- Google Login Debug Info Start ---");
+        const envSiteUrl = getEnvValue('SITE_URL'); // This will now prioritize NEXT_PUBLIC_SITE_URL
+        const windowOrigin = window.location.origin;
+
+        console.log("--- Google Login Debug Info ---");
         console.log("1. Environment variable 'SITE_URL' (via getEnvValue):", envSiteUrl);
+        console.log("2. window.location.origin:", windowOrigin);
 
         let baseRedirectUrl: string;
-        // getEnvValue already checks for invalid placeholder values like "YOUR_" and empty strings.
-        // If envSiteUrl is undefined at this point, it means no valid SITE_URL was configured.
-        if (envSiteUrl) {
-            baseRedirectUrl = envSiteUrl;
-            console.log("2. Using configured SITE_URL as baseRedirectUrl:", baseRedirectUrl);
+        if (envSiteUrl && envSiteUrl.trim() !== '') {
+            baseRedirectUrl = envSiteUrl.trim();
+            console.log("3. Using envSiteUrl as baseRedirectUrl:", baseRedirectUrl);
         } else {
-            // As per user's explicit request, DO NOT fallback to window.location.origin.
-            // Instead, prevent the OAuth flow and show a configuration error.
-            const configError = "環境変数 SITE_URL が設定されていません。SupabaseのOAuthリダイレクトには必須です。管理者は .env または設定ページで正しいURL (例: https://erp.b-p.co.jp) を設定してください。";
-            setError(configError);
-            setLoading(false);
-            console.error("3. SITE_URL configuration error: OAuth flow prevented.", configError);
-            console.log("--- Google Login Debug Info End (Error) ---");
-            return;
+            baseRedirectUrl = windowOrigin;
+            console.log("3. envSiteUrl not found or empty, falling back to window.location.origin as baseRedirectUrl:", baseRedirectUrl);
         }
         
         const redirectToUrl = `${baseRedirectUrl}/auth/callback`;
         console.log("4. Final constructed redirectTo URL (for Supabase):", redirectToUrl);
+        console.log("-------------------------------");
 
-        const { error: authError } = await supabase.auth.signInWithOAuth({
+        const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
                 redirectTo: redirectToUrl,
             },
         });
-        if (authError) throw authError;
-
-        console.log("5. OAuth sign-in initiated successfully. Redirecting to Google for user authentication.");
-        console.log("--- Google Login Debug Info End (Success) ---");
-
+        if (error) throw error;
     } catch (err: any) {
         console.error("Google login error (full object):", err); // Log the full error object as well
-        setError(err.message || "Googleログイン中に不明なエラーが発生しました。");
-        console.log("--- Google Login Debug Info End (Exception) ---");
+        setError(err.message);
     } finally {
         setLoading(false);
     }

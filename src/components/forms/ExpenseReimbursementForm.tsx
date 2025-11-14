@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { submitApplication } from '../../services/dataService.ts';
 import { extractInvoiceDetails } from '../../services/geminiService.ts';

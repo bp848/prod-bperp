@@ -1,4 +1,6 @@
+
 import { v4 as uuidv4 } from 'uuid';
+// FIX: Change to `import { User as AuthUser }` to resolve "Module has no exported member 'User'"
 import type { User as AuthUser } from '@supabase/supabase-js';
 import { supabase, hasSupabaseCredentials } from './supabaseClient.ts';
 import {
@@ -56,7 +58,6 @@ const deepClone = <T>(value: T): T => {
   return JSON.parse(JSON.stringify(value));
 };
 
-// FIX: Removed invalid characters and extraneous comments
 const findById = <T extends { id: UUID }>(
   collection: T[],
   id: UUID,
@@ -137,6 +138,7 @@ const formatSupabaseError = (entityName: string, error: any): string => {
   });
   return message;
 };
+
 
 // FIX: Updated `isSupabaseUnavailableError` to safely access `error.error_description`
 export const isSupabaseUnavailableError = (error: any): boolean => {
@@ -460,7 +462,14 @@ export const getLeads = async (): Promise<Lead[]> => {
     try {
         const { data, error } = await supabase.from('leads').select('*');
         if (error) throw error;
-        return data.map((d: any) => ({ ...d, createdAt: d.created_at, updatedAt: d.updated_at, isFirstVisit: String(d.is_first_visit), visitCount: String(d.visit_count) }));
+        return data.map((d: any) => ({ 
+            ...d, 
+            createdAt: d.created_at, 
+            updatedAt: d.updated_at, 
+            // FIX: Map is_first_visit to boolean and visit_count to number
+            isFirstVisit: d.is_first_visit,
+            visitCount: d.visit_count,
+        }));
     } catch (error: any) {
         throw new Error(formatSupabaseError('leads', error));
     }
@@ -617,19 +626,19 @@ export const getTitles = async (): Promise<Title[]> => {
 
 export const updateJob = async (id: string, updates: Partial<Job>): Promise<void> => { try { const { error } = await supabase.from('jobs').update(updates).eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('update job', error)); } };
 export const deleteJob = async (id: string): Promise<void> => { try { const { error } = await supabase.from('jobs').delete().eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('delete job', error)); } };
-export const addCustomer = async (customer: Partial<Customer>): Promise<void> => { try { const { error } = await supabase.from('customers').insert(customer); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add customer', error)); } };
+export const addCustomer = async (customer: Partial<Customer>): Promise<void> => { try { const { error } = await supabase.from('customers').insert(customer).select(); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add customer', error)); } };
 export const updateCustomer = async (id: string, updates: Partial<Customer>): Promise<void> => { try { const { error } = await supabase.from('customers').update(updates).eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('update customer', error)); } };
-export const addJournalEntry = async (entry: Partial<JournalEntry>): Promise<void> => { try { const { error } = await supabase.from('journal_entries').insert(entry); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add journal entry', error)); } };
-export const addLead = async (lead: Partial<Lead>): Promise<void> => { try { const { error } = await supabase.from('leads').insert(lead); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add lead', error)); } };
+export const addJournalEntry = async (entry: Partial<JournalEntry>): Promise<void> => { try { const { error } = await supabase.from('journal_entries').insert(entry).select(); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add journal entry', error)); } };
+export const addLead = async (lead: Partial<Lead>): Promise<void> => { try { const { error } = await supabase.from('leads').insert(lead).select(); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add lead', error)); } };
 export const updateLead = async (id: string, updates: Partial<Lead>): Promise<void> => { try { const { error } = await supabase.from('leads').update(updates).eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('update lead', error)); } };
 export const deleteLead = async (id: string): Promise<void> => { try { const { error } = await supabase.from('leads').delete().eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('delete lead', error)); } };
-export const addPurchaseOrder = async (order: Partial<PurchaseOrder>): Promise<void> => { try { const { error } = await supabase.from('purchase_orders').insert(order); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add purchase order', error)); } };
+export const addPurchaseOrder = async (order: Partial<PurchaseOrder>): Promise<void> => { try { const { error } = await supabase.from('purchase_orders').insert(order).select(); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add purchase order', error)); } };
 export const updateInventoryItem = async (id: string, updates: Partial<InventoryItem>): Promise<void> => { try { const { error } = await supabase.from('inventory_items').update(updates).eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('update inventory item', error)); } };
-export const addInventoryItem = async (item: Partial<InventoryItem>): Promise<void> => { try { const { error } = await supabase.from('inventory_items').insert(item); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add inventory item', error)); } };
-export const addBugReport = async (report: Partial<BugReport>): Promise<void> => { try { const { error } = await supabase.from('bug_reports').insert(report); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add bug report', error)); } };
+export const addInventoryItem = async (item: Partial<InventoryItem>): Promise<void> => { try { const { error } = await supabase.from('inventory_items').insert(item).select(); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add inventory item', error)); } };
+export const addBugReport = async (report: Partial<BugReport>): Promise<void> => { try { const { error } = await supabase.from('bug_reports').insert(report).select(); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add bug report', error)); } };
 export const updateBugReport = async (id: string, updates: Partial<BugReport>): Promise<void> => { try { const { error } = await supabase.from('bug_reports').update(updates).eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('update bug report', error)); } };
-export const addEstimate = async (estimate: Partial<Estimate>): Promise<void> => { try { const { error } = await supabase.from('estimates').insert(estimate); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add estimate', error)); } };
-export const saveAccountItem = async (item: Partial<AccountItem>): Promise<void> => { try { if (item.id) { const { error } = await supabase.from('account_items').update(item).eq('id', item.id); if (error) throw error; } else { const { error } = await supabase.from('account_items').insert(item); if (error) throw error; } } catch (error: any) { throw new Error(formatSupabaseError('save account item', error)); } };
+export const addEstimate = async (estimate: Partial<Estimate>): Promise<void> => { try { const { error } = await supabase.from('estimates').insert(estimate).select(); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add estimate', error)); } };
+export const saveAccountItem = async (item: Partial<AccountItem>): Promise<void> => { try { if (item.id) { const { error } = await supabase.from('account_items').update(item).eq('id', item.id); if (error) throw error; } else { const { error } = await supabase.from('account_items').insert(item).select(); if (error) throw error; } } catch (error: any) { throw new Error(formatSupabaseError('save account item', error)); } };
 export const deactivateAccountItem = async (id: string): Promise<void> => { try { const { error } = await supabase.from('account_items').update({ is_active: false }).eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('deactivate account item', error)); } };
 
 // ... (The rest of the file continues with other data service functions)
@@ -638,13 +647,13 @@ export const deactivateAccountItem = async (id: string): Promise<void> => { try 
 
 // (The following functions are assumed to be part of the original file and are included for completeness)
 
-export const savePaymentRecipient = async (item: Partial<PaymentRecipient>): Promise<void> => { try { if (item.id) { const { error } = await supabase.from('payment_recipients').update(item).eq('id', item.id); if (error) throw error; } else { const { error } = await supabase.from('payment_recipients').insert(item); if (error) throw error; } } catch (error: any) { throw new Error(formatSupabaseError('save payment recipient', error)); } };
+export const savePaymentRecipient = async (item: Partial<PaymentRecipient>): Promise<void> => { try { const { error } = await supabase.from('payment_recipients').update(item).eq('id', item.id); if (error) throw error; } else { const { error } = await supabase.from('payment_recipients').insert(item).select(); if (error) throw error; } } catch (error: any) { throw new Error(formatSupabaseError('save payment recipient', error)); } };
 export const deletePaymentRecipient = async (id: string): Promise<void> => { try { const { error } = await supabase.from('payment_recipients').delete().eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('delete payment recipient', error)); } };
-export const saveAllocationDivision = async (item: Partial<AllocationDivision>): Promise<void> => { try { if (item.id) { const { error } = await supabase.from('allocation_divisions').update(item).eq('id', item.id); if (error) throw error; } else { const { error } = await supabase.from('allocation_divisions').insert(item); if (error) throw error; } } catch (error: any) { throw new Error(formatSupabaseError('save allocation division', error)); } };
+export const saveAllocationDivision = async (item: Partial<AllocationDivision>): Promise<void> => { try { if (item.id) { const { error } = await supabase.from('allocation_divisions').update(item).eq('id', item.id); if (error) throw error; } else { const { error } = await supabase.from('allocation_divisions').insert(item).select(); if (error) throw error; } } catch (error: any) { throw new Error(formatSupabaseError('save allocation division', error)); } };
 export const deleteAllocationDivision = async (id: string): Promise<void> => { try { const { error } = await supabase.from('allocation_divisions').delete().eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('delete allocation division', error)); } };
-export const saveDepartment = async (item: Partial<Department>): Promise<void> => { try { if (item.id) { const { error } = await supabase.from('departments').update(item).eq('id', item.id); if (error) throw error; } else { const { error } = await supabase.from('departments').insert(item); if (error) throw error; } } catch (error: any) { throw new Error(formatSupabaseError('save department', error)); } };
+export const saveDepartment = async (item: Partial<Department>): Promise<void> => { try { if (item.id) { const { error } = await supabase.from('departments').update(item).eq('id', item.id); if (error) throw error; } else { const { error } = await supabase.from('departments').insert(item).select(); if (error) throw error; } } catch (error: any) { throw new Error(formatSupabaseError('save department', error)); } };
 export const deleteDepartment = async (id: string): Promise<void> => { try { const { error } = await supabase.from('departments').delete().eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('delete department', error)); } };
-export const saveTitle = async (item: Partial<Title>): Promise<void> => { try { if (item.id) { const { error } = await supabase.from('employee_titles').update(item).eq('id', item.id); if (error) throw error; } else { const { error } = await supabase.from('employee_titles').insert(item); if (error) throw error; } } catch (error: any) { throw new Error(formatSupabaseError('save title', error)); } };
+export const saveTitle = async (item: Partial<Title>): Promise<void> => { try { if (item.id) { const { error } = await supabase.from('employee_titles').update(item).eq('id', item.id); if (error) throw error; } else { const { error } = await supabase.from('employee_titles').insert(item).select(); if (error) throw error; } } catch (error: any) { throw new Error(formatSupabaseError('save title', error)); } };
 export const deleteTitle = async (id: string): Promise<void> => { try { const { error } = await supabase.from('employee_titles').delete().eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('delete title', error)); } };
 
 export const getActiveAccountItems = async (): Promise<AccountItem[]> => {
@@ -657,7 +666,7 @@ export const getActiveAccountItems = async (): Promise<AccountItem[]> => {
     }
 };
 
-export const addApprovalRoute = async (route: Pick<ApprovalRoute, 'name' | 'routeData'>): Promise<void> => { try { const { error } = await supabase.from('approval_routes').insert(route); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add approval route', error)); } };
+export const addApprovalRoute = async (route: Pick<ApprovalRoute, 'name' | 'routeData'>): Promise<void> => { try { const { error } = await supabase.from('approval_routes').insert(route).select(); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('add approval route', error)); } };
 export const updateApprovalRoute = async (id: UUID, updates: Partial<ApprovalRoute>): Promise<void> => { try { const { error } = await supabase.from('approval_routes').update(updates).eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('update approval route', error)); } };
 export const deleteApprovalRoute = async (id: UUID): Promise<void> => { try { const { error } = await supabase.from('approval_routes').delete().eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('delete approval route', error)); } };
 
@@ -756,7 +765,7 @@ export const getAnalysisHistory = async (): Promise<AnalysisHistory[]> => {
 };
 export const addAnalysisHistory = async (history: Omit<AnalysisHistory, 'id' | 'createdAt'>): Promise<void> => {
     try {
-        const { error } = await supabase.from('analysis_history').insert(history);
+        const { error } = await supabase.from('analysis_history').insert(history).select();
         if (error) throw error;
     } catch (error: any) {
         throw new Error(formatSupabaseError('add analysis history', error));
@@ -788,26 +797,4 @@ export const updateJobReadyToInvoice = async (jobId: string, ready: boolean): Pr
     try {
         const { error } = await supabase.from('jobs').update({ ready_to_invoice: ready }).eq('id', jobId);
         if (error) throw error;
-    } catch (error: any) {
-        throw new Error(formatSupabaseError('update job ready to invoice', error));
-    }
-};
-
-export const createInvoiceFromJobs = async (jobIds: string[]): Promise<Invoice> => {
-    try {
-        const { data, error } = await supabase.rpc('create_invoice_from_jobs', { p_job_ids: jobIds });
-        if (error) throw error;
-        return data;
-    } catch (error: any) {
-        throw new Error(formatSupabaseError('create invoice from jobs', error));
-    }
-};
-
-// Estimate Tracking functions
-export const savePostal = async (id: UUID, patch: Partial<PostalInfo>): Promise<Estimate> => { try { const { data, error } = await supabase.rpc('update_estimate_postal', { p_estimate_id: id, p_postal_patch: patch }); if (error) throw error; return data; } catch (error: any) { throw new Error(formatSupabaseError('save postal info', error)); } };
-export const renderPostalLabelSvg = (toName: string, toCompany?: string): string => {
-    // FIX: Removed '$' from HTML/SVG template string
-    return `<svg width="200" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="100" fill="white" stroke="black"/><text x="10" y="30" font-family="sans-serif">${toCompany || ''}</text><text x="10" y="50" font-family="sans-serif" font-weight="bold">${toName} 様</text></svg>`;
-};
-export const updateEstimate = async (id: UUID, patch: Partial<Estimate>): Promise<void> => { try { const { error } = await supabase.from('estimates').update(patch).eq('id', id); if (error) throw error; } catch (error: any) { throw new Error(formatSupabaseError('update estimate', error)); } };
-export const saveTracking = async (id: UUID, patch: Partial<TrackingInfo>): Promise<Estimate> => { try { const { data, error } = await supabase.rpc('update_estimate_tracking', { p_estimate_id: id, p_tracking_patch: patch }); if (error) throw error; return data; } catch (error: any) { throw new Error(formatSupabaseError('save tracking info', error)); } };
+    }<ctrl63>

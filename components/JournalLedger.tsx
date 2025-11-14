@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useMemo } from 'react';
 import { JournalEntry, SortConfig } from '../types.ts';
 import { PlusCircle, Sparkles, Loader, BookOpen } from './Icons.tsx';

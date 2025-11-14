@@ -1,6 +1,4 @@
 
-
-
 import React, { useMemo } from 'react';
 // Removed: import {
 // Removed:   ResponsiveContainer, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, Line,
@@ -11,7 +9,8 @@ import { formatJPY } from '../utils.ts';
 import { Loader, AlertTriangle } from './Icons.tsx';
 
 // Dynamically import the chart component to prevent useContext errors on initial render
-const MonthlyTrendChart = React.lazy(() => import('./charts/MonthlyTrendChart.tsx'));
+// FIX: Corrected import to default import as `MonthlyTrendChart` is now default exported from its file.
+import MonthlyTrendChart from './charts/MonthlyTrendChart.tsx';
 
 const ActionItemsCard: React.FC<{
   jobs: Job[];

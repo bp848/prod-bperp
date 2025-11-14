@@ -1,5 +1,4 @@
 
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractInvoiceDetails } from '../services/geminiService.ts';
 import { getInboxItems, addInboxItem, updateInboxItem, deleteInboxItem, uploadFile } from '../services/dataService.ts';
@@ -38,7 +37,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         'error': { text: 'エラー', className: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' },
     };
     const { text, className } = statusMap[status] || {text: status, className: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'};
-    return <span className={`px-2.5 py-1 text-sm font-medium rounded-full ${className}`}>{text}</span>;
+    return <span className={`px-2.5 py-1 text-sm font-medium rounded-full ${className}`}>さんも参照しています。</span>;
 };
 
 const InboxItemCard: React.FC<{

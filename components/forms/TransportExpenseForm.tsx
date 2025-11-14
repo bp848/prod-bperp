@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo, useRef } from 'react';
 import { submitApplication } from '../../services/dataService.ts';
 import { extractInvoiceDetails } from '../../services/geminiService.ts';
